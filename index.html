@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>TRIP BOOK STUDIO - Google Drive保存・読込版</title>
+<title>TRIP BOOK STUDIO - Google Drive設定済み版</title>
 <style>
 :root{
   --ink:#30343b;
@@ -1992,6 +1992,27 @@ input:focus,textarea:focus,select:focus{
   }
 }
 
+
+.drive-ready-box{
+  display:grid;
+  gap:4px;
+  padding:10px 11px;
+  border:1px solid #bddfc5;
+  border-radius:12px;
+  background:#edf8f0;
+  color:#315b3f;
+  font-size:11px;
+  line-height:1.55;
+}
+.drive-ready-box b{
+  color:#1d6338;
+}
+@media(max-width:760px){
+  .drive-ready-box{
+    font-size:13px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -2036,7 +2057,7 @@ input:focus,textarea:focus,select:focus{
       <div class="drive-title-row">
         <div>
           <h3 style="margin:0">Google Drive</h3>
-          <div class="small">PC ⇄ スマホの受け渡し用。リアルタイム同期ではなく「保存 / 読み込み」方式です。</div>
+          <div class="small">PC ⇄ スマホの受け渡し用。Google設定済みなので、各端末ではGoogleアカウントを選ぶだけです。</div>
         </div>
         <div class="drive-status" id="driveStatus" data-state="idle">未接続</div>
       </div>
@@ -2053,24 +2074,20 @@ input:focus,textarea:focus,select:focus{
       </div>
 
       <details class="drive-settings">
-        <summary>初回設定 / Google OAuth Client ID</summary>
+        <summary>Google Drive接続情報</summary>
         <div class="stack" style="margin-top:10px">
-          <div>
-            <label>OAuth 2.0 クライアントID（ウェブアプリ）</label>
-            <input id="driveClientId" type="text"
-              placeholder="1234567890-xxxx.apps.googleusercontent.com"
-              autocomplete="off"
-              oninput="saveDriveClientId()">
+          <div class="drive-ready-box">
+            <b>OAuthクライアント設定済み</b>
+            <span>このHTMLにはGoogle Drive用のクライアントIDを設定済みです。PC・スマホごとの入力は不要です。</span>
           </div>
           <div class="drive-origin-box">
-            <div class="small"><b>Google Cloudに登録する「承認済みの JavaScript 生成元」</b></div>
+            <div class="small"><b>承認済みの JavaScript 生成元</b></div>
             <code id="driveOriginText">確認中…</code>
             <button class="btn drive-copy-btn" type="button" onclick="copyDriveOrigin()">コピー</button>
           </div>
           <div class="small">
-            Google Cloud側で「Google Drive API」を有効化し、OAuthクライアントの種類を
-            <b>ウェブ アプリケーション</b> にして、上の生成元を登録してください。
-            クライアントシークレットはこのHTMLには入力しません。
+            GitHub Pagesでは <b>https://anzai0314.github.io</b> がGoogle Cloud側に登録されていれば利用できます。
+            Googleアカウントごとに最初の認証・許可は必要です。
           </div>
           <button class="btn" type="button" onclick="driveForgetToken()">Google Drive接続をやり直す</button>
         </div>
@@ -2664,7 +2681,7 @@ function dayHeadingHtml(d,di){
    ========================================================= */
 const DRIVE_SCOPE="https://www.googleapis.com/auth/drive.file";
 const DRIVE_BACKUP_NAME="旅のしおり_Drive同期バックアップ.json";
-const DRIVE_CLIENT_ID_KEY="tripShioriGoogleDriveClientIdV25";
+const DRIVE_CLIENT_ID="967243950976-v1m3cmm5bu5movg7djkka97oe8fiqd6t.apps.googleusercontent.com";
 const DRIVE_FILE_ID_KEY="tripShioriGoogleDriveFileIdV25";
 let driveTokenClient=null;
 let driveAccessToken="";
@@ -2673,27 +2690,23 @@ let drivePendingAction=null;
 let driveBusy=false;
 
 function getDriveClientId(){
-  return (($("driveClientId")&&$("driveClientId").value)||localStorage.getItem(DRIVE_CLIENT_ID_KEY)||"").trim();
+  return DRIVE_CLIENT_ID;
 }
 
-function saveDriveClientId(){
-  const id=getDriveClientId();
-  if(id) localStorage.setItem(DRIVE_CLIENT_ID_KEY,id);
-  else localStorage.removeItem(DRIVE_CLIENT_ID_KEY);
-  driveTokenClient=null;
-  driveAccessToken="";
-  driveTokenExpiresAt=0;
-  setDriveStatus(id?"設定済み・未接続":"未設定","idle");
-}
+
 
 function initDriveUi(){
-  const id=localStorage.getItem(DRIVE_CLIENT_ID_KEY)||"";
-  if($("driveClientId")) $("driveClientId").value=id;
+  const origin=location.origin && location.origin!=="null"
+    ? location.origin
+    : "file://（ローカルHTMLではDrive認証できません）";
 
-  const origin=location.origin && location.origin!=="null" ? location.origin : "file://（ローカルHTMLではDrive認証できません）";
   if($("driveOriginText")) $("driveOriginText").textContent=origin;
 
-  setDriveStatus(id?"設定済み・未接続":"Client ID未設定",id?"idle":"warn");
+  if(location.protocol==="file:"){
+    setDriveStatus("GitHub Pagesで開いてください","warn");
+  }else{
+    setDriveStatus("Drive利用可能","ok");
+  }
   updateDriveBackupInfo();
 }
 
@@ -2722,7 +2735,7 @@ function driveForgetToken(){
   driveAccessToken="";
   driveTokenExpiresAt=0;
   driveTokenClient=null;
-  setDriveStatus(getDriveClientId()?"接続をリセットしました":"Client ID未設定","idle");
+  setDriveStatus("Drive利用可能","ok");
 }
 
 function countBackupImages(data){
@@ -2767,10 +2780,7 @@ function updateDriveBackupInfo(){
 }
 
 function initDriveTokenClient(){
-  const clientId=getDriveClientId();
-  if(!clientId){
-    throw new Error("Google OAuth Client IDを設定してください。");
-  }
+  const clientId=DRIVE_CLIENT_ID;
   if(location.protocol==="file:"){
     throw new Error("Google Drive機能はGitHub PagesなどHTTPSのURLから開いて使用してください。");
   }
@@ -2813,7 +2823,7 @@ function ensureDriveAuthorization(action){
     initDriveTokenClient();
   }catch(e){
     alert(e.message);
-    setDriveStatus(e.message.includes("Client ID")?"Client ID未設定":"接続できません","error");
+    setDriveStatus("接続できません","error");
     return;
   }
 
@@ -3522,7 +3532,7 @@ function hydrate(o){
 }
 function saveLocal(show=false){
   try{
-    localStorage.setItem("travelShioriDesignerV25_DRIVE",JSON.stringify(collect()));
+    localStorage.setItem("travelShioriDesignerV26_DRIVEREADY",JSON.stringify(collect()));
     if(show)alert("この端末に保存しました。");
   }
   catch(e){
@@ -3563,7 +3573,7 @@ $("importInput").addEventListener("change",async e=>{
 const importedProjectData={"title":"","subtitle":"四国3泊4日 家族旅行","issueNo":"","displayDate":"2026.08.20 - 08.23","period":"2026年8月20日〜23日","people":"4","members":"","coverSubtitle":"","fuelEff":"15","fuelPrice":"175","typography":{"fontScale":"100","timeSize":"11","spotTitleSize":"12","metaSize":"9","descSize":"9.5","daySize":"20","subtitleSize":"12","textColor":"#18324a","spotTitleColor":"#17324d","metaColor":"#66788a","descColor":"#40566b","noteColor":"#d45b46","titlebarBg":"#17324d","titlebarText":"#ffffff"},"coverPhoto":"","days":[{"id":"day1","title":"8月20日","date":"","introTitle":"仙台から神戸を経由して高松へ","introNote":"","stops":[{"id":"04a7d483-c8b8-459a-a662-886faf8c44e0","time":"8：00","name":"安齋家","address":"仙台市太白区郡山4－5－7","phone":"","distance":15,"duration":"","description":"出発","photo":""},{"id":"s101","time":"8：30","name":"仙台空港","address":"","phone":"","distance":0,"duration":"","description":"9：50発","photo":""},{"id":"s102","time":"11:15","name":"神戸空港","address":"兵庫県神戸市中央区神戸空港1","phone":"078-304-7777","distance":0,"duration":"","description":"空港到着後、シャトルバスでレンタカーショップへ移動","photo":""},{"id":"s103","time":"12：00","name":"スカイレンタカー神戸空港店","address":"兵庫県神戸市中央区港島８丁目３−１","phone":"0120-196-018","distance":5.7,"duration":"","description":"12時半頃手続き終了予定\n神戸淡路自動車道へ","photo":""},{"id":"3bc65dc9-049a-4e5a-a787-698e036fb6e2","time":"13:00","name":"淡路SA","address":"兵庫県淡路市岩屋２５６８","phone":"","distance":33,"duration":"","description":"昼食と淡路島タマネギの購入\n14時出発予定","photo":""},{"id":"s104","time":"15：30","name":"Happy House ","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":133,"duration":"","description":"チェックイン17時30分まで休憩と荷ほどき","photo":""},{"id":"85c6a043-6043-498b-ab49-e7f57c83400b","time":"17:40","name":"饂角（うかく）製麺","address":" 香川県高松市瓦町１丁目４−８","phone":"","distance":1.1,"duration":"","description":"本場のさぬきうどんと現代人の味の好みが融合した至高のいっぱいを\n\n徒歩移動","photo":""},{"id":"1b9dbe17-f331-44ab-9065-faf8a89d3b15","time":"20:00","name":"Happy House ","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":1.1,"duration":"","description":"一日目終了　おつかれさまでした","photo":""}]},{"id":"day2","title":"8月21日","date":"","introTitle":"","introNote":"","stops":[{"id":"s201","time":"7:30","name":"Happy House 出発","address":"","phone":"","distance":0,"duration":"","description":"前夜にラ・ムーで購入した朝食。","photo":""},{"id":"s202","time":"8:00","name":"山越うどん","address":"香川県綾歌郡綾川町羽床上602-2","phone":"087-878-0420","distance":20,"duration":"","description":"釜玉で知られる讃岐うどんの名店。開店前到着推奨。予算は約400〜800円\n\n9時開店","photo":""},{"id":"s204","time":"12:00 ","name":"松山市役所前地下駐車場","address":"愛媛県松山市二番町４丁目７","phone":"","distance":148,"duration":"","description":"30分/130円","photo":""},{"id":"ad025259-b64c-4c47-a0e9-0060d3075278","time":"12:10","name":"から揚げ食堂ごいち","address":"愛媛県松山市二番町3丁目2-10","phone":"","distance":0,"duration":"","description":"リーズナブルで満足いく食事をするならここ！\n\nなんと定食はサラダ味噌汁つきでごはんおかわり自由\n\n850－1500円","photo":""},{"id":"s205","time":"13:00 ","name":"坂の上の雲ミュージアム","address":"愛媛県松山市一番町3-20","phone":"089-915-2600","distance":0.3,"duration":"","description":"正岡子規・秋山兄弟と明治日本を紹介する施設。入館料500円","photo":""},{"id":"s207","time":"14:30","name":"秋山兄弟生誕地","address":"愛媛県松山市歩行町2-3-6","phone":"089-943-2747","distance":0.4,"duration":"","description":"秋山好古・真之兄弟の生家を復元。\n\n入場料400円","photo":""},{"id":"s208","time":"15:30 ","name":"松山城","address":"愛媛県松山市丸之内1","phone":"089-921-4873","distance":1,"duration":"","description":"現存12天守の一つ。松山市街と瀬戸内海を望む。ロープウェイ利用\n\n往復券520円","photo":""},{"id":"cac0f0e2-9947-4a89-8e4e-18ef5a788451","time":"19:00","name":"ごはんや えん","address":"香川県高松市多肥下町１５４８−２８","phone":"087-866-2515","distance":160,"duration":"","description":"高松市で人気の鮮魚を味わえる和食屋\n\n1000～2000円","photo":""},{"id":"s210","time":"20:00","name":"ラ・ムー高松中央店","address":"香川県高松市多肥上町1092","phone":"087-864-8850","distance":1.6,"duration":"","description":"翌朝食購入。24時間営業","photo":""},{"id":"dc5aebb9-a664-4408-b961-bb29cdd863ec","time":"21:00","name":"Happy House","address":"","phone":"","distance":6,"duration":"","description":"二日目終了おつかれさまでした","photo":""}]},{"id":"day3","title":"8月22日","date":"","introTitle":"","introNote":"","stops":[{"id":"s301","time":"8：00","name":"Happy House　出発","address":"","phone":"","distance":0,"duration":"","description":"朝食は前日ラムーで買ったものを","photo":""},{"id":"s303","time":"9:00","name":"徳島県立池田高校","address":"徳島県三好市池田町ウエノ2834","phone":"0883-72-1280","distance":61,"duration":"","description":"やまびこ打線で知られる高校野球の名門。校内には入らず、公道側から静かに見学","photo":""},{"id":"s307","time":"10：00","name":"道の駅 大歩危（おおぼけ）","address":"徳島県三好市山城町上名1553-1","phone":"0883-84-1489","distance":21,"duration":"","description":"吉野川と切り立つ峡谷の絶景。道の駅大歩危から眺望。\n\n妖怪屋敷と石の博物館もご一緒に\n入館料500円","photo":""},{"id":"s311","time":"12：00","name":"清流のそば処 祖谷美人","address":"徳島県三好市西祖谷山村善徳１０−１","phone":"","distance":10,"duration":"","description":"源平合戦からの歴史に由来する歴史ある手打ちそば\n\n1000～2000円","photo":""},{"id":"3cbf1b1f-0f3a-401e-b68a-86734f178cc3","time":"13:00","name":"祖谷のかずら橋","address":"徳島県三好市西祖谷山村善徳１６２−２","phone":"","distance":1,"duration":"","description":" 平家一族の哀話を秘める、秘境“祖谷”にあるかずら橋\n\n入場料550円","photo":""},{"id":"907e1249-ad7e-4f70-afeb-55ab868542e1","time":"17：00","name":"洋食の店 はる","address":" 香川県高松市多肥上町１８７６−６","phone":"","distance":83,"duration":"","description":"ミックスフライやオムライス、エビクリームグラタンなどの手作り洋食メニューが人気","photo":""},{"id":"s313","time":"18:00","name":"ラ・ムー高松中央店","address":"香川県高松市多肥上町1092","phone":"087-864-8850","distance":2,"duration":"","description":"翌朝食購入。24時間営業","photo":""},{"id":"a437146e-ec22-4d63-a181-7b3e5e21434c","time":"19：00","name":"Happy House","address":"","phone":"","distance":6,"duration":"","description":"三日目終了おつかれさまでした","photo":""}]},{"id":"day4","title":"8月23日","date":"","introTitle":"","introNote":"","stops":[{"id":"s402","time":"08:00","name":"Happy House チェックアウト","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":0,"duration":"","description":"高松の宿をチェックアウト。","photo":""},{"id":"s403","time":"10：00","name":"あわじ花さじき","address":"兵庫県淡路市楠本２８０５−７","phone":"","distance":130,"duration":"","description":"季節の花が咲き乱れる公園を散策","photo":""},{"id":"s404","time":"11：30","name":"淡路ハイウェイオアシス","address":"兵庫県淡路市岩屋大林２６７４−３","phone":"","distance":14,"duration":"","description":"食事ができるカウンターや地域の特産品を販売する屋台、花畑などがある道の駅","photo":""},{"id":"2c020afb-3c3f-4623-be71-aa890ef36bd0","time":"13：30","name":"メリケンパーク","address":"兵庫県神戸市中央区波止場町２−２","phone":"","distance":30,"duration":"","description":"ジム・ポケスト・の密集地帯","photo":""},{"id":"s407","time":"14:30 ","name":"スカイレンタカー神戸空港店","address":"兵庫県神戸市中央区港島８丁目３−１","phone":"0120-196-018","distance":6,"duration":"","description":"契約店舗へ返却。15時まで\n\n指定のガソリンスタンドで給油","photo":""},{"id":"bbf15f00-fea7-46c8-9819-fc77cdcc480d","time":"15：00","name":"神戸空港着","address":"兵庫県神戸市中央区神戸空港1","phone":"078-304-7777","distance":0,"duration":"","description":"17時半発","photo":""},{"id":"c636fe36-b40e-4a84-aa65-4d7cbef54fad","time":"18：50","name":"仙台空港","address":"","phone":"","distance":0,"duration":"","description":"","photo":""},{"id":"d4b4ac50-4bde-41d6-adab-f1489c594718","time":"20：00","name":"安齋家着","address":"","phone":"","distance":14,"duration":"","description":"おつかれさまでした！！","photo":""}]}],"costs":[],"activeDayId":"day1"};
 const importedHandwrittenTrip={"title":"旅のしおり","subtitle":"四国3泊4日 家族旅行","issueNo":"","displayDate":"2026.08.20 - 08.23","period":"2026年8月20日〜23日","people":"4","members":"","coverSubtitle":"しまなみ・愛媛・徳島・祖谷をめぐる4日間","fuelEff":"15","fuelPrice":"175","typography":{"fontScale":"100","timeSize":"11","spotTitleSize":"12","metaSize":"9","descSize":"9.5","daySize":"20","subtitleSize":"12","textColor":"#18324a","spotTitleColor":"#17324d","metaColor":"#66788a","descColor":"#40566b","noteColor":"#d45b46","titlebarBg":"#17324d","titlebarText":"#ffffff"},"coverPhoto":"","days":[{"id":"day1","title":"8月20日（木）","date":"","introTitle":"仙台から神戸へ。尾道・しまなみ海道・松山を経由して高松へ","introNote":"手書きメモをもとに、神戸空港から尾道経由でしまなみ海道を渡り、今治・松山を経て高松へ向かうルートとして整理。初日は運転距離がかなり長いため、休憩を多めに。","stops":[{"id":"d1s1","time":"08:00","name":"自宅 出発","address":"仙台市太白区郡山4-5-7","phone":"","distance":0,"duration":"","description":"4日間の旅行スタート。","photo":""},{"id":"d1s2","time":"08:45","name":"朝日駐車場","address":"宮城県名取市下増田字小沼29","phone":"022-384-5283","distance":15,"duration":"","description":"仙台空港前の民間駐車場。3泊4日の駐車料金目安 2,000円。空港へ送迎。","photo":""},{"id":"d1s3","time":"09:50","name":"仙台空港 発","address":"宮城県名取市下増田字南原","phone":"","distance":0,"duration":"","description":"神戸空港へ。","photo":""},{"id":"d1s4","time":"11:15","name":"神戸空港 着","address":"兵庫県神戸市中央区神戸空港1","phone":"078-304-7777","distance":0,"duration":"","description":"到着後、レンタカーを受け取る。","photo":""},{"id":"d1s5","time":"12:00","name":"レンタカーで出発","address":"兵庫県神戸市中央区神戸空港1","phone":"","distance":0,"duration":"","description":"山陽道で尾道方面へ。尾道から西瀬戸自動車道（しまなみ海道）を通り今治へ。","photo":""},{"id":"d1s6","time":"15:30","name":"今治・しまなみ海道","address":"愛媛県今治市","phone":"","distance":297.4,"duration":"約3時間30分","description":"神戸空港→尾道→しまなみ海道経由。高速料金概算：神戸方面→尾道 約4,300円＋しまなみ海道 約2,800円。","photo":""},{"id":"d1s7","time":"16:30","name":"松山","address":"愛媛県松山市","phone":"","distance":56.8,"duration":"約1時間","description":"今治から松山方面へ。高速利用時の目安 約1,490円。","photo":""},{"id":"d1s8","time":"19:00","name":"Happy House チェックイン","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":155,"duration":"約2時間","description":"3泊の宿泊拠点。松山→高松の高速料金目安 約3,910円。宿泊料金は予約額をあとで入力。","photo":""}]},{"id":"day2","title":"8月21日（金）","date":"","introTitle":"愛媛の日。今治城・しまなみの景色・松山城・坂の上の雲","introNote":"手書きメモにある「今治城・しまなみ海道・松山城・坂の上の雲ミュージアム」を、移動の無駄が少ない順に整理しています。","stops":[{"id":"d2s1","time":"08:00","name":"Happy House 出発","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":0,"duration":"","description":"高松から今治へ。","photo":""},{"id":"d2s2","time":"09:45","name":"今治城","address":"愛媛県今治市通町3-1-3","phone":"0898-31-9233","distance":141.1,"duration":"約1時間45分","description":"海水を堀に引き入れた海岸平城。観覧料：一般520円。高校生以下または18歳未満は無料。駐車場は普通車1時間ごと100円。","photo":""},{"id":"d2s3","time":"11:00","name":"しまなみ海道・今治周辺","address":"愛媛県今治市","phone":8,"distance":0,"duration":"約15分","description":"来島海峡方面の景色を楽しむ時間として設定。手書きメモの「しまなみ海道・今治」を反映。","photo":""},{"id":"d2s4","time":"13:00","name":"坂の上の雲ミュージアム","address":"愛媛県松山市一番町3-20","phone":"089-915-2600","distance":56.8,"duration":"約1時間","description":"正岡子規・秋山兄弟と明治日本を紹介。一般500円、高校生250円、中学生以下無料。","photo":""},{"id":"d2s5","time":"15:00","name":"松山城","address":"愛媛県松山市丸之内1","phone":"089-921-4873","distance":1.5,"duration":"徒歩・市内移動","description":"天守観覧：大人520円。ロープウェイ・リフト往復：大人520円。合計大人1人1,040円。","photo":""},{"id":"d2s6","time":"17:00","name":"松山 出発","address":"愛媛県松山市","phone":"","distance":0,"duration":"","description":"高松へ戻る。","photo":""},{"id":"d2s7","time":"19:00","name":"Happy House","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":151.1,"duration":"約1時間40分","description":"松山→高松の高速料金目安 約3,910円。","photo":""}]},{"id":"day3","title":"8月22日（土）","date":"","introTitle":"徳島市から鳴門へ。阿波おどり・眉山・うずしお・大塚国際美術館","introNote":"手書きメモの「阿波踊り会館→眉山ロープウェイ→わんだーなると→大塚美術館」を時刻に合わせて整理。8月は大塚国際美術館は無休。","stops":[{"id":"d3s1","time":"08:00","name":"Happy House 出発","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":0,"duration":"","description":"徳島市へ。","photo":""},{"id":"d3s2","time":"09:00","name":"阿波おどり会館","address":"徳島県徳島市新町橋2-20","phone":"088-611-1611","distance":70,"duration":"約1時間","description":"館内見学。阿波おどりミュージアムは大人500円。昼公演は11:00から、2025年4月以降の通常料金は大人1,300円。","photo":""},{"id":"d3s3","time":"09:45","name":"眉山ロープウェイ","address":"徳島県徳島市新町橋2-20","phone":"088-652-3617","distance":0,"duration":"","description":"阿波おどり会館5階から眉山山頂へ。往復：大人1,500円。山頂から徳島市街を一望。","photo":""},{"id":"d3s4","time":"11:00","name":"阿波おどり 昼公演","address":"徳島県徳島市新町橋2-20","phone":"088-611-1611","distance":0,"duration":"","description":"通常昼公演は約40分。大人1,300円、小中学生700円。","photo":""},{"id":"d3s5","time":"12:00","name":"徳島市 出発","address":"徳島県徳島市","phone":"","distance":0,"duration":"","description":"鳴門方面へ。","photo":""},{"id":"d3s6","time":"13:00","name":"うずしお観潮船 わんだーなると","address":"徳島県鳴門市鳴門町土佐泊浦字大毛264-1","phone":"088-687-0101","distance":25,"duration":"約30分","description":"大型観潮船。所要約30分。大人2,000円、小学生1,000円。駐車場無料。","photo":""},{"id":"d3s7","time":"14:00","name":"大塚国際美術館","address":"徳島県鳴門市鳴門町土佐泊浦字福池65-1","phone":"088-687-3737","distance":2,"duration":"約3時間","description":"世界の名画を陶板で原寸大再現。一般3,300円、小中高生550円。開館9:30〜17:00、8月は無休。","photo":""},{"id":"d3s8","time":"17:15","name":"鳴門 出発","address":"徳島県鳴門市","phone":"","distance":0,"duration":"","description":"高松へ戻る。","photo":""},{"id":"d3s9","time":"18:30","name":"Happy House","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":67,"duration":"約1時間","description":"3日目終了。","photo":""}]},{"id":"day4","title":"8月23日（日）","date":"","introTitle":"祖谷の渓谷を楽しんでから神戸空港へ","introNote":"手書きメモの「祖谷そば・小便小僧・かずら橋→12時頃出発→神戸空港17:30発」をもとに整理。山道のため時間には十分余裕を。","stops":[{"id":"d4s1","time":"07:00","name":"Happy House チェックアウト","address":"香川県高松市本町9-3 白井ビル","phone":"","distance":0,"duration":"","description":"高松を出発。","photo":""},{"id":"d4s2","time":"09:00","name":"清流のそば処 祖谷美人","address":"徳島県三好市西祖谷山村善徳9-3","phone":"0883-87-2009","distance":134.6,"duration":"約2時間","description":"祖谷渓を眺めながら祖谷そば。公式案内では食事処は朝から営業。食事代は実費。","photo":""},{"id":"d4s3","time":"10:00","name":"祖谷渓 小便小僧","address":"徳島県三好市池田町松尾〜西祖谷山村","phone":"","distance":12,"duration":"約20分","description":"祖谷渓の断崖に立つ名物像。見学無料。山道の運転に注意。","photo":""},{"id":"d4s4","time":"10:45","name":"祖谷のかずら橋","address":"徳島県三好市西祖谷山村善徳162-2","phone":"","distance":15,"duration":"約30分","description":"渡橋料：大人550円、小学生350円。普通車駐車場の目安500円。","photo":""},{"id":"d4s5","time":"12:00","name":"祖谷 出発","address":"徳島県三好市西祖谷山村","phone":"","distance":0,"duration":"","description":"井川池田IC方面へ戻り、徳島道・高松道・神戸淡路鳴門道で神戸へ。","photo":""},{"id":"d4s6","time":"15:15","name":"レンタカー返却・神戸空港へ","address":"兵庫県神戸市中央区神戸空港1","phone":"","distance":245,"duration":"約3時間15分","description":"道路状況によって時間が延びるため余裕を確保。高速代は休日ETC利用で概算約5,800円。給油して返却。","photo":""},{"id":"d4s7","time":"17:30","name":"神戸空港 発","address":"兵庫県神戸市中央区神戸空港1","phone":"078-304-7777","distance":0,"duration":"","description":"仙台へ。","photo":""},{"id":"d4s8","time":"18:50","name":"仙台空港 着","address":"宮城県名取市下増田字南原","phone":"","distance":0,"duration":"","description":"朝日駐車場へ移動して自家用車を受け取る。","photo":""},{"id":"d4s9","time":"20:00","name":"自宅 着","address":"仙台市太白区郡山4-5-7","phone":"","distance":15,"duration":"約30分","description":"4日間おつかれさまでした。","photo":""}]}],"costs":[{"id":"c01","category":"高速道路","name":"8/20 神戸→尾道→しまなみ→松山→高松（概算）","amount":12500},{"id":"c02","category":"高速道路","name":"8/21 高松→今治→松山→高松（概算）","amount":9050},{"id":"c03","category":"高速道路","name":"8/22 高松→徳島→鳴門→高松（土曜ETC概算）","amount":3790},{"id":"c04","category":"高速道路","name":"8/23 高松→祖谷→神戸（日曜ETC概算）","amount":7610},{"id":"c05","category":"駐車場","name":"朝日駐車場 3泊4日","amount":2000},{"id":"c06","category":"駐車場","name":"今治城 駐車場概算","amount":200},{"id":"c07","category":"駐車場","name":"松山市内 駐車場概算","amount":1000},{"id":"c08","category":"駐車場","name":"阿波おどり会館 駐車場概算","amount":840},{"id":"c09","category":"駐車場","name":"かずら橋 夢舞台駐車場","amount":500},{"id":"c10","category":"入場料","name":"今治城（大人4名換算）","amount":2080},{"id":"c11","category":"入場料","name":"坂の上の雲ミュージアム（大人4名換算）","amount":2000},{"id":"c12","category":"入場料","name":"松山城 天守＋ロープウェイ往復（大人4名換算）","amount":4160},{"id":"c13","category":"入場料","name":"阿波おどり昼公演（大人4名換算）","amount":5200},{"id":"c14","category":"入場料","name":"眉山ロープウェイ往復（大人4名換算）","amount":6000},{"id":"c15","category":"入場料","name":"わんだーなると（大人4名換算）","amount":8000},{"id":"c16","category":"入場料","name":"大塚国際美術館（大人4名換算）","amount":13200},{"id":"c17","category":"入場料","name":"祖谷のかずら橋（大人4名換算）","amount":2200},{"id":"c18","category":"宿泊","name":"Happy House 3泊（予約額を入力）","amount":0},{"id":"c19","category":"交通","name":"航空券 4名分（予約額を入力）","amount":0},{"id":"c20","category":"交通","name":"レンタカー（予約額を入力）","amount":0},{"id":"c21","category":"食事","name":"食費（あとで入力）","amount":0}],"activeDayId":"day1"};
 initDriveUi();
-const saved=localStorage.getItem("travelShioriDesignerV25_DRIVE") || localStorage.getItem("travelShioriDesignerV24_MOBILE") || localStorage.getItem("travelShioriDesignerV23_PRINTFIX") || localStorage.getItem("travelShioriDesignerV22_COVERBOTTOM") || localStorage.getItem("travelShioriDesignerV21_COVERFIX") || localStorage.getItem("travelShioriDesignerV20_DRAG") || localStorage.getItem("travelShioriDesignerV19_PHOTO") || localStorage.getItem("travelShioriDesignerV18_BLANKPHOTO") || localStorage.getItem("travelShioriDesignerV17_A4COMPACT") || localStorage.getItem("travelShioriDesignerV16_DIRECT") || localStorage.getItem("travelShioriDesignerV15_HAND");
+const saved=localStorage.getItem("travelShioriDesignerV26_DRIVEREADY") || localStorage.getItem("travelShioriDesignerV25_DRIVE") || localStorage.getItem("travelShioriDesignerV24_MOBILE") || localStorage.getItem("travelShioriDesignerV23_PRINTFIX") || localStorage.getItem("travelShioriDesignerV22_COVERBOTTOM") || localStorage.getItem("travelShioriDesignerV21_COVERFIX") || localStorage.getItem("travelShioriDesignerV20_DRAG") || localStorage.getItem("travelShioriDesignerV19_PHOTO") || localStorage.getItem("travelShioriDesignerV18_BLANKPHOTO") || localStorage.getItem("travelShioriDesignerV17_A4COMPACT") || localStorage.getItem("travelShioriDesignerV16_DIRECT") || localStorage.getItem("travelShioriDesignerV15_HAND");
 if(saved){
   try{hydrate(JSON.parse(saved))}
   catch(e){hydrate(importedHandwrittenTrip);saveLocal(false)}
